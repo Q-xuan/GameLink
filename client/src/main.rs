@@ -1,5 +1,7 @@
 //! GameLink window. iced draws the Chinese product UI.
 
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::{Element, Font, Length, Subscription, Task, Theme};
 
