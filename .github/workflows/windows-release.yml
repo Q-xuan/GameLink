@@ -1,0 +1,92 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - "v0.3.0"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Verify official Wintun 0.14.1 amd64
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path $env:TEMP "wintun-0.14.1.zip"
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile $zipPath
+          $zipHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          $wantZip = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
+          if ($zipHash -ne $wantZip) { throw "wintun zip sha256 $zipHash" }
+          $extract = Join-Path $env:TEMP "wintun-0141"
+          if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+          tar -xf $zipPath -C $env:TEMP
+          $fromZip = Join-Path $env:TEMP "wintun\bin\amd64\wintun.dll"
+          $wantDll = "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce"
+          $zipDll = (Get-FileHash $fromZip -Algorithm SHA256).Hash.ToLower()
+          if ($zipDll -ne $wantDll) { throw "zip dll sha256 $zipDll" }
+          $embedded = "client\assets\wintun.dll"
+          $got = (Get-FileHash $embedded -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $wantDll) { throw "embedded dll sha256 $got" }
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Rust tests
+        working-directory: client
+        run: cargo test
+
+      - name: Build gamelink.exe
+        working-directory: client
+        run: cargo build --release
+
+      - name: Require one executable and the administrator manifest
+        shell: pwsh
+        run: |
+          $exe = "client\target\release\gamelink.exe"
+          if (-not (Test-Path $exe)) { throw "missing gamelink.exe" }
+          $dlls = Get-ChildItem "client\target\release" -Filter *.dll -File
+          if ($dlls) {
+            throw ("iced build produced extra dlls: " + ($dlls.Name -join ", "))
+          }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $ascii = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($ascii -notmatch "requireAdministrator") {
+            throw "gamelink.exe is missing requireAdministrator"
+          }
+          $needles = @(
+            ("195.72.187." + "81"),
+            ("gamelink." + "aru" + "yx.com"),
+            ("panel-la." + "aru" + "yx.com"),
+            ("aru" + "yx.com")
+          )
+          foreach ($needle in $needles) {
+            if ($ascii.Contains($needle)) { throw "executable contains a removed endpoint" }
+            $utf16 = [System.Text.Encoding]::Unicode.GetBytes($needle)
+            $utf16Text = [System.Text.Encoding]::Unicode.GetString($utf16)
+            $wide = [System.Text.Encoding]::Unicode.GetString($bytes)
+            if ($wide.Contains($utf16Text)) { throw "executable contains a removed endpoint" }
+          }
+
+      - name: Publish gamelink.exe
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.3.0
+          files: client/target/release/gamelink.exe
+          fail_on_unmatched_files: true
+          body: |
+            Windows x64 图形客户端。双击 gamelink.exe，在 UAC 提示中允许。
+            第一次打开会询问控制面地址和中继地址，并保存在当前用户的 AppData。
+            程序里不带服务器地址。洛杉矶服务器不需要改动。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

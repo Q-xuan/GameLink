@@ -18,7 +18,7 @@ func TestDefaults(t *testing.T) {
 	if cfg.ControlListen != DefaultControlListen || cfg.RelayListen != DefaultRelayListen {
 		t.Fatalf("%+v", cfg)
 	}
-	if cfg.PublicControlURL != "wss://gamelink.aruyx.com" || cfg.PublicRelay != "195.72.187.81:41000" {
+	if cfg.PublicControlURL != "http://127.0.0.1:41080" || cfg.PublicRelay != "127.0.0.1:41000" {
 		t.Fatalf("%+v", cfg)
 	}
 	if cfg.Insecure {
@@ -60,8 +60,8 @@ func TestRefuseTCP443(t *testing.T) {
 }
 
 func TestURLRewrite(t *testing.T) {
-	httpBase, err := HTTPBase("wss://gamelink.aruyx.com")
-	if err != nil || httpBase != "https://gamelink.aruyx.com" {
+	httpBase, err := HTTPBase("wss://127.0.0.1:41080")
+	if err != nil || httpBase != "https://127.0.0.1:41080" {
 		t.Fatal(httpBase, err)
 	}
 	wsBase, err := WSBase("http://127.0.0.1:41080")

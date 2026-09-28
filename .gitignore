@@ -3,3 +3,4 @@
 /gamelink-server
 /valheim-sim
 *.test
+/client/target/

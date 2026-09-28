@@ -14,8 +14,8 @@ import (
 const (
 	DefaultControlListen    = "127.0.0.1:41080"
 	DefaultRelayListen      = "0.0.0.0:41000"
-	DefaultPublicControlURL = "wss://gamelink.aruyx.com"
-	DefaultPublicRelay      = "195.72.187.81:41000"
+	DefaultPublicControlURL = "http://127.0.0.1:41080"
+	DefaultPublicRelay      = "127.0.0.1:41000"
 
 	EnvControlListen    = "GAMELINK_CONTROL_LISTEN"
 	EnvRelayListen      = "GAMELINK_RELAY_LISTEN"
