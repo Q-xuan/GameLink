@@ -21,7 +21,7 @@ go build -o valheim-sim ./cmd/valheim-sim
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o gamelink-server ./cmd/server
 ```
 
-当前切片版本是 `0.1.0`，启动时会打印。请在本地用上面的命令构建，本仓库不提供下载地址。
+服务器版本是 `0.1.0`，启动时会打印。服务器请在本地构建。Windows 图形客户端由 GitHub Actions 在 `windows-latest` 上编译，Release 附件是 `gamelink-windows-amd64.zip`。
 
 ## 运行服务器
 
@@ -68,34 +68,39 @@ gamelink join CODE --token HEX --control http://127.0.0.1:41080 --relay 127.0.0.
 
 ## Windows 客户端
 
-在 Windows 11 上，`gamelink host` 和 `gamelink join` 会创建名为 `GameLink` 的 Wintun 网卡，地址是房间分配的 `10.66.0.N/24`（主机是 `10.66.0.1/24`），MTU 1280。它只在这块网卡上添加 on-link 路由 `10.66.0.0/24`。不会安装 `0.0.0.0/0` 或 `::/0`，不会改 DNS，也不会删除其他网卡上的路由。退出时先删除本进程加过的地址和这条路由，再关掉这块网卡。
+双击 `gamelink.exe`。内嵌清单要求管理员权限，Windows 弹出 UAC，点允许即可，不必打开管理员终端。
 
-必须用管理员身份运行。没有提升权限时，程序会直接退出并提示中文错误。
+同一个 exe 仍保留 `gamelink host` 和 `gamelink join`。窗口调用同一套房间、中继、Wintun 和路由代码。默认控制面是 `wss://gamelink.aruyx.com`（REST 走 `https://gamelink.aruyx.com`）。UDP 使用创建或加入房间时服务器返回的中继地址；已部署的中继是字面地址 `195.72.187.81:41000`。控制连接和 UDP 互不绑定来源地址。图形界面不会关闭 MAC。命令行联调本机时仍可使用已有的 `--insecure`，连这台公网服务器不要加。
 
-本仓库不附带 `wintun.dll`，也不提供 `gamelink.exe` 的下载地址。在 Windows 上自行构建：
+创建房间后窗口给出一条邀请串，格式是 `gamelink://join/<房间码>/<令牌>`，旁边有「复制」。另一台电脑把这条串粘进「加入」，或直接点 `gamelink://` 链接。程序启动时为当前用户注册该协议，不需要单独的安装步骤。
 
-```bat
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o gamelink.exe ./cmd/client
+窗口显示连接状态、本机虚拟地址，以及 Ping/Pong 往返延迟（毫秒）。握手过程会显示已等待的秒数。若在限定时间内没有握上，会显示一句：代理节点可能丢弃了 UDP。
+
+建议直连，也可以使用能转发 UDP 的代理节点（例如 Hysteria2、TUIC）。走代理时节点必须转发 UDP，否则握手会停住。到 `gamelink.aruyx.com` 的 HTTPS 可以继续走代理。若检测到 FlClash、Clash Verge 或 mihomo 的 TUN（进程名 `FlClash.exe`、`clash-verge.exe`、`verge-mihomo.exe`、`mihomo.exe`，或本机地址落在 `198.18.0.0/15`），窗口会显示下面两条规则和「复制」，建议放在代理规则列表最前面。程序不修改代理配置、代理注册表或任何 Clash 文件。
+
+```
+PROCESS-NAME,gamelink.exe,DIRECT
+IP-CIDR,195.72.187.81/32,DIRECT,no-resolve
 ```
 
-官方签名驱动从 <https://www.wintun.net/> 下载 **Wintun 0.14.1**。压缩包 SHA-256 是 `07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51`。解压后把 `wintun/bin/amd64/wintun.dll` 复制到 `gamelink.exe` 同一目录，文件名保持 `wintun.dll`。不要使用 x86、arm 或 arm64 那一份，也不要改放到 System32。Go 绑定是 `golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2`，对应 0.14 的 `WintunCreateAdapter(Name, TunnelType, RequestedGUID)`。0.13 的 DLL 不兼容。这里只在 Linux 上核对了 0.14.1 头文件和这份 Go 绑定，没有在 Windows 上加载过驱动。
+路由不变：网卡名 `GameLink`，只添加 on-link 路由 `10.66.0.0/24`，MTU 1280。不安装默认路由，不改 DNS。退出时先删掉本进程加过的地址和这条路由，再关掉这块网卡。地址是房间分配的 `10.66.0.N/24`（主机是 `10.66.0.1/24`）。
 
-默认连已部署的服务器，不要加 `--insecure`：
+官方 Wintun 0.14.1 amd64 的 `wintun.dll` 嵌在 exe 里。第一次运行时用 `os.Executable()` 定位目录，核对 DLL 的 SHA-256 后再写到 exe 旁边。不要换 0.13，也不要换非 amd64 的 DLL。不需要自己下载 Wintun。官方压缩包 SHA-256 是 `07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51`。Go 绑定仍是 `golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2`。
+
+从 Release 下载 `gamelink-windows-amd64.zip`，解压后双击。自行编译时，先用 `scripts/fetch-wintun.ps1`（或 `scripts/fetch-wintun.sh`）核对压缩包并放好 DLL，再执行：
+
+```bat
+go build -trimpath -o gamelink.exe ./cmd/client
+```
+
+这里没有在 Windows 上打开过这个窗口，也没有加载过 Wintun。
+
+命令行：
 
 ```bat
 gamelink.exe host
 gamelink.exe join 房间码 --token 十六进制令牌
 ```
-
-控制面默认是 `wss://gamelink.aruyx.com`（REST 会走 `https://gamelink.aruyx.com`）。UDP 拨的是字面地址 `195.72.187.81:41000`，不是域名。控制连接和 UDP 互不绑定来源地址。
-
-这台机器上如果还有别的代理 TUN（fake-ip，`gamelink.aruyx.com` 可能解析到 `198.18.0.0/15`），把 `gamelink.exe` 这个进程和 `195.72.187.81` 都设为 DIRECT。到 `gamelink.aruyx.com` 的 HTTPS 可以继续走代理。发往中继字面 IP 的 UDP 不能走代理。
-
-第二个人还没加入时，可以先在一台电脑上确认：
-
-- 网卡 `GameLink` 已经起来，地址是 `10.66.0.1/24`
-- `route print` 里能看到 `10.66.0.0` 掩码 `255.255.255.0` 走这块网卡，默认路由没有变化
-- 客户端日志里有 `正在握手 195.72.187.81:41000`，随后是 `握手完成，每 5 秒发送 Ping`
 
 两台电脑都进同一房间之后，加入方执行 `ping 10.66.0.1`。
 

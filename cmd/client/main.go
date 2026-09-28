@@ -12,6 +12,7 @@ import (
 
 	"github.com/Q-xuan/GameLink/internal/config"
 	"github.com/Q-xuan/GameLink/internal/control"
+	"github.com/Q-xuan/GameLink/internal/invite"
 	"github.com/Q-xuan/GameLink/internal/relay"
 	"github.com/Q-xuan/GameLink/internal/room"
 	"github.com/Q-xuan/GameLink/internal/tun"
@@ -19,6 +20,16 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
+		if guiAvailable {
+			os.Exit(runGUI(""))
+		}
+		usage()
+		os.Exit(2)
+	}
+	if invite.IsURL(os.Args[1]) {
+		if guiAvailable {
+			os.Exit(runGUI(os.Args[1]))
+		}
 		usage()
 		os.Exit(2)
 	}
@@ -46,8 +57,8 @@ func usage() {
   gamelink join <code> --token <hex> [--control URL] [--relay HOST:PORT] [--insecure]
 
 一个进程只加入一个房间。默认控制面是 %s，默认中继是 %s。
-Windows 上会创建 Wintun 网卡 GameLink，并且必须以管理员身份运行。
-本地服务器请同时传入 --control 和 --relay，否则会使用创建房间时返回的中继地址。
+Windows 上双击本程序会打开中文窗口，并在 UAC 提示里请求管理员权限。
+命令行仍会创建 Wintun 网卡 GameLink。本地服务器请同时传入 --control 和 --relay，否则会使用创建房间时返回的中继地址。
 `, config.DefaultPublicControlURL, config.DefaultPublicRelay)
 }
 
@@ -59,6 +70,10 @@ func cmdHost(args []string) int {
 	insecure := fs.Bool("insecure", false, "不附加 MAC，仅用于本机测试")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if err := prepareClient(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
 	}
 	if err := tun.RequireAdmin(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -103,6 +118,10 @@ func cmdJoin(args []string) int {
 	if *token == "" {
 		fmt.Fprintln(os.Stderr, "join 需要 --token")
 		return 2
+	}
+	if err := prepareClient(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
 	}
 	if err := tun.RequireAdmin(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())

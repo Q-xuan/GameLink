@@ -17,7 +17,7 @@ func RequireAdmin() error {
 		if err == nil {
 			token.Close()
 		}
-		return fmt.Errorf("需要管理员权限才能创建 GameLink 网卡、设置地址和路由。请右键以管理员身份运行")
+		return fmt.Errorf("需要管理员权限才能创建 GameLink 网卡、设置地址和路由。请双击 gamelink.exe，并在 UAC 提示中允许")
 	}
 	token.Close()
 	return nil
