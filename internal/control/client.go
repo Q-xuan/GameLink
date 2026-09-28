@@ -16,6 +16,9 @@ import (
 	"github.com/Q-xuan/GameLink/internal/config"
 )
 
+// httpTimeout covers a proxied control call. Measured calls took about 1.7s.
+const httpTimeout = 15 * time.Second
+
 // CreateRoom calls POST /v1/rooms.
 func CreateRoom(ctx context.Context, controlURL string) (Created, error) {
 	base, err := config.HTTPBase(controlURL)
@@ -73,7 +76,7 @@ func doJSON(ctx context.Context, method, rawURL string, in any, out any, want in
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: httpTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
