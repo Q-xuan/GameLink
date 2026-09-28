@@ -115,7 +115,7 @@ func explainWintun(err error) error {
 	msg := err.Error()
 	lower := strings.ToLower(msg)
 	if strings.Contains(lower, "wintun") || strings.Contains(lower, "load") || strings.Contains(lower, "dll") {
-		return fmt.Errorf("找不到或无法加载 wintun.dll。请把官方 Wintun 0.14.1 的 amd64 文件（压缩包内 wintun/bin/amd64/wintun.dll）放到 gamelink.exe 同一目录，并以管理员身份运行: %w", err)
+		return fmt.Errorf("无法加载程序自带的 wintun.dll。请重新双击 gamelink.exe，让它在自身旁边写出官方 Wintun 0.14.1 amd64，并在 UAC 提示中允许: %w", err)
 	}
 	return fmt.Errorf("创建网卡 %s 失败: %w", AdapterName, err)
 }

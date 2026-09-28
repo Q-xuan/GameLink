@@ -3,3 +3,5 @@
 /gamelink-server
 /valheim-sim
 *.test
+/internal/wintunbin/wintun.dll
+/.cache/

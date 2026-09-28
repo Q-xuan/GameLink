@@ -1,0 +1,54 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Verify official Wintun 0.14.1 and stage amd64 DLL
+        shell: pwsh
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/fetch-wintun.ps1
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build gamelink.exe
+        run: go build -trimpath -ldflags "-s -w" -o gamelink.exe ./cmd/client
+
+      - name: Require the administrator manifest
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes("gamelink.exe")
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch "requireAdministrator") {
+            throw "gamelink.exe is missing requireAdministrator"
+          }
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path gamelink.exe -DestinationPath gamelink-windows-amd64.zip -Force
+
+      - name: Publish Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: gamelink-windows-amd64.zip
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.2.0' }}
+          body: |
+            Windows amd64 客户端。解压后双击 gamelink.exe，在 UAC 提示中允许。
+            洛杉矶服务器不需要改动。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
