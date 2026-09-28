@@ -14,7 +14,7 @@ import (
 	"github.com/Q-xuan/GameLink/internal/control"
 	"github.com/Q-xuan/GameLink/internal/relay"
 	"github.com/Q-xuan/GameLink/internal/room"
-	"github.com/Q-xuan/GameLink/protocol"
+	"github.com/Q-xuan/GameLink/internal/tun"
 )
 
 func main() {
@@ -45,9 +45,10 @@ func usage() {
   gamelink host [--control URL] [--relay HOST:PORT] [--insecure]
   gamelink join <code> --token <hex> [--control URL] [--relay HOST:PORT] [--insecure]
 
-一个进程只加入一个房间。默认控制面是 %s。
+一个进程只加入一个房间。默认控制面是 %s，默认中继是 %s。
+Windows 上会创建 Wintun 网卡 GameLink，并且必须以管理员身份运行。
 本地服务器请同时传入 --control 和 --relay，否则会使用创建房间时返回的中继地址。
-`, config.DefaultPublicControlURL)
+`, config.DefaultPublicControlURL, config.DefaultPublicRelay)
 }
 
 func cmdHost(args []string) int {
@@ -58,6 +59,10 @@ func cmdHost(args []string) int {
 	insecure := fs.Bool("insecure", false, "不附加 MAC，仅用于本机测试")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if err := tun.RequireAdmin(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -77,7 +82,7 @@ func cmdHost(args []string) int {
 	}
 	fmt.Printf("relay %s\n", relayAddr)
 	fmt.Printf("control %s\n", created.ControlURL)
-	return runSession(ctx, *controlURL, created.Code, created.Token, created.RoomID, created.PeerID, relayAddr, *insecure)
+	return runSession(ctx, *controlURL, created.Code, created.Token, created.RoomID, created.PeerID, created.VIP, relayAddr, *insecure)
 }
 
 func cmdJoin(args []string) int {
@@ -99,6 +104,10 @@ func cmdJoin(args []string) int {
 		fmt.Fprintln(os.Stderr, "join 需要 --token")
 		return 2
 	}
+	if err := tun.RequireAdmin(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	joined, err := control.JoinRoom(ctx, *controlURL, code, *token)
@@ -115,10 +124,10 @@ func cmdJoin(args []string) int {
 		relayAddr = *relayOverride
 	}
 	fmt.Printf("relay %s\n", relayAddr)
-	return runSession(ctx, *controlURL, joined.Code, *token, joined.RoomID, joined.PeerID, relayAddr, *insecure)
+	return runSession(ctx, *controlURL, joined.Code, *token, joined.RoomID, joined.PeerID, joined.VIP, relayAddr, *insecure)
 }
 
-func runSession(ctx context.Context, controlURL, code, tokenHex, roomText string, peerID uint32, relayAddr string, insecure bool) int {
+func runSession(ctx context.Context, controlURL, code, tokenHex, roomText string, peerID uint32, vip, relayAddr string, insecure bool) int {
 	token, err := room.ParseToken(tokenHex)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "token: %v\n", err)
@@ -153,19 +162,7 @@ func runSession(ctx context.Context, controlURL, code, tokenHex, roomText string
 			fmt.Fprintf(os.Stderr, "ping: %v\n", err)
 		}
 	}()
-	for {
-		h, payload, err := sess.Recv(ctx)
-		if ctx.Err() != nil {
-			return 0
-		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "接收失败: %v\n", err)
-			return 1
-		}
-		if h.Type == protocol.TypeData {
-			fmt.Printf("data src_peer=%d bytes=%d seq=%d\n", h.SrcPeer, len(payload), h.Sequence)
-		}
-	}
+	return serve(ctx, sess, vip)
 }
 
 func streamEvents(ctx context.Context, controlURL, code, token string, peerID uint32) {

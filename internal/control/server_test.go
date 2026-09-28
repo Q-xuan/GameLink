@@ -33,6 +33,12 @@ func testServer(t *testing.T, logger *log.Logger) (*room.Store, *Hub, *httptest.
 	return rooms, hub, ts
 }
 
+func TestHTTPTimeoutCoversProxy(t *testing.T) {
+	if httpTimeout < 10*time.Second {
+		t.Fatalf("http timeout %s is below 10s", httpTimeout)
+	}
+}
+
 func TestHealthz(t *testing.T) {
 	_, _, ts := testServer(t, nil)
 	resp, err := http.Get(ts.URL + "/healthz")

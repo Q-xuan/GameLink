@@ -24,6 +24,7 @@ type Session struct {
 // SessionConfig identifies the room membership used on the wire.
 type SessionConfig struct {
 	Relay        string
+	Local        string // optional local UDP address; empty lets the kernel choose
 	RoomID       uint64
 	PeerID       uint32
 	Token        [protocol.TokenSize]byte
@@ -32,12 +33,20 @@ type SessionConfig struct {
 }
 
 // Dial opens a connected UDP socket to the relay.
+// cfg.Relay is used as a literal address when it has no hostname.
 func Dial(cfg SessionConfig) (*Session, error) {
 	raddr, err := net.ResolveUDPAddr("udp4", cfg.Relay)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.DialUDP("udp4", nil, raddr)
+	var laddr *net.UDPAddr
+	if cfg.Local != "" {
+		laddr, err = net.ResolveUDPAddr("udp4", cfg.Local)
+		if err != nil {
+			return nil, err
+		}
+	}
+	conn, err := net.DialUDP("udp4", laddr, raddr)
 	if err != nil {
 		return nil, err
 	}
